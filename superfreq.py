@@ -3,7 +3,7 @@
 Homemade frequency analysis tools.
 """
 from collections import Counter
-from itertools import chain
+from itertools import cycle, islice
 import math
 import random
 import string
@@ -38,9 +38,18 @@ ENGFREQ = {
 }
 
 
-def interleave(iterables):
-    """Given a list of iterables, interleave them!"""
-    return chain.from_iterable(zip(*iterables))
+def roundrobin(*iterables):
+    "roundrobin('ABC', 'D', 'EF') --> A D E B F C"
+    # Recipe credited to George Sakkis
+    pending = len(iterables)
+    nexts = cycle(iter(it).__next__ for it in iterables)
+    while pending:
+        try:
+            for next in nexts:
+                yield next()
+        except StopIteration:
+            pending -= 1
+            nexts = cycle(islice(nexts, pending))
 
 
 class Alphabet(object):
@@ -145,8 +154,25 @@ DEFAULT = Alphabet(string.ascii_uppercase, dict(zip(string.ascii_letters, string
 
 
 class SimilarityMetric(object):
+    """Computes similarity between two frequency distributions.
+
+    In order to determine whether or not a possible decryption is right, you
+    could have a human look at it. But that gets really painful really quick.
+    A better way is to analyze the frequency of letters and compare it to that
+    of normal English. This class implements a similarity metric - cosine
+    similarity.
+
+    """
 
     def __init__(self, alphabet, counter=None, training=None):
+        """Create a similarity metric instance for a given alphabet.
+
+        :param alphabet: Alphabet instance to use
+        :param counter: Dict mapping characters to counts, from the source
+            language. ENGFREQ is one such example.
+        :param training: An alphabet string that should be used as a sample.
+            Must provide either this or counter.
+        """
         self.alphabet = alphabet
         if counter:
             self.counter = counter
@@ -155,15 +181,18 @@ class SimilarityMetric(object):
         self.frequencies = self.frequency(self.counter)
 
     def count(self, string):
+        """Return counts for a string."""
         counter = self.alphabet.empty_counter()
         counter.update(string)
         return counter
 
     def frequency(self, counter):
+        """Return frequencies from a count dict."""
         l = sum(counter.values())
         return {k: v/l for k, v in counter.items()}
 
     def compute(self, string):
+        """Compute the similarity metric between the baseline and a string."""
         freq = self.frequency(self.count(string))
         num = 0
         lden = 0
@@ -176,19 +205,42 @@ class SimilarityMetric(object):
 
 
 class CaesarCipher(object):
+    """A very simple cipher which shifts each character by a certain amount.
+
+    For example, here it is in action with a shift of 2:
+
+        plaintext:  STEPHEN IS COOL
+        ciphertext: UVGRJGP KU EQQN
+    """
 
     def __init__(self, shift, alphabet):
+        """A Caesar Cipher's key is just an integer shift."""
         self.shift = shift
         self.alphabet = alphabet
 
     def encrypt(self, message):
+        """Encrypt the message."""
         return self.alphabet.shift(message, self.shift)
 
     def decrypt(self, message):
+        """Reverse of encrypt."""
         return self.alphabet.shift(message, -self.shift)
 
     @classmethod
     def crack(cls, message, alphabet, sim):
+        """Break the Caesar cipher by a frequency analysis.
+
+        Given a message and a similarity metric, try each possible shift and
+        return the one that maximizes the similarity metric.
+
+        :param message: ciphertext
+        :param alphabet: the alphabet of the message
+        :param sim: A SimilarityMetric to use for comparison
+        :returns: a three-tuple:
+            [0]: similarity metric value
+            [1]: decrypted message
+            [2]: the cipher instance used to decrypt it
+        """
         options = []
         for i in range(len(alphabet.characters)):
             cipher = cls(i, alphabet)
@@ -198,8 +250,25 @@ class CaesarCipher(object):
 
 
 class VigenereCipher(object):
+    """A more complex variation on a CaesarCipher.
+
+    This method involves a key word or phrase. This is overlaid on the
+    plaintext, and each letter of the key is interpreted as a shift amount. An
+    example:
+
+        plaintext:  HELLO ITS ME AGAIN
+        key:        WAFFL ESW AF FLESW
+        ciphertext: DEQQZ MLO MJ FREAJ
+
+    """
 
     def __init__(self, alphabet, key=None, indices=None):
+        """Create an instance of the VigenereCipher
+
+        :param alphabet: Alphabet instance to use.
+        :param key: a key word to use
+        :param indices: a list of indices to use instead
+        """
         if indices:
             self.indices = indices
             self.key = alphabet.chars(indices)
@@ -214,7 +283,7 @@ class VigenereCipher(object):
         submessages = [message[i::L] for i in range(L)]
         shifted = [self.alphabet.shift(sub, shift)
                    for sub, shift in zip(submessages, indices)]
-        return interleave(shifted)
+        return roundrobin(*shifted)
 
     def encrypt(self, message):
         return self._split_shift_join(message, self.indices)
