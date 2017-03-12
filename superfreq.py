@@ -4,8 +4,8 @@ Homemade frequency analysis tools.
 """
 from collections import Counter
 from itertools import chain
-import argparse
 import math
+import random
 import string
 
 ENGFREQ = {
@@ -231,8 +231,9 @@ def main():
     alpha_plaintext, offsets = DEFAULT.to_alphabet(plaintext)
     print('Plaintext starts like this:')
     print('%s...' % ''.join(alpha_plaintext[:77]))
-    print('Encrypting with CaesarCipher(5)')
-    cipher = CaesarCipher(5, DEFAULT)
+    key = random.randint(1, 25)
+    print('Encrypting with CaesarCipher(%d)' % key)
+    cipher = CaesarCipher(key, DEFAULT)
     ciphertext = cipher.encrypt(alpha_plaintext)
     print('Ciphertext starts like this:')
     print('%s...' % ''.join(ciphertext[:77]))
@@ -240,7 +241,7 @@ def main():
     sim = SimilarityMetric(DEFAULT, counter=ENGFREQ)
     corr, decrypted, cipher = CaesarCipher.crack(ciphertext, DEFAULT, sim)
     print('Best result, score %f, is CasearCipher(%d)' % (corr, cipher.shift))
-    print('Decripted text starts like this:')
+    print('Decrypted text starts like this:')
     print('%s...' % ''.join(decrypted[:77]))
 
 
