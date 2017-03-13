@@ -11,8 +11,11 @@ Ciphers should behave as follows:
   generator of the following tuples, in roughly decreasing probability
   (similarity, message, cipher)
 """
+from collections import Counter
+import re
+
 from superfreq.message import Message
-from superfreq.util import roundrobin
+from superfreq.util import factors, index_of_coincidence, roundrobin
 
 
 class CaesarCipher(object):
@@ -106,3 +109,35 @@ class VigenereCipher(object):
         indices = message.alphabet.indices(self.key)
         negatives = [-x for x in indices]
         return self._split_shift_join(message, negatives)
+
+    @classmethod
+    def kasiski(cls, message):
+        s = ''.join(message.alphatext)
+        matches = re.findall(r'(.{2,}).+\1', s)
+        factor_counts = Counter()
+        for m in matches:
+            first_idx = s.index(m)
+            second_idx = s.index(m, first_idx + 1)
+            factor_counts.update(factors(second_idx - first_idx))
+            print(second_idx - first_idx)
+        print(factor_counts)
+
+    @classmethod
+    def ic(cls, message):
+        s = ''.join(message.alphatext)
+        for i in range(2, len(s)-1):
+            iocs = [index_of_coincidence(s[x::i]) * 26 for x in range(i)]
+            print('For key size %d: %f' % (i, sum(iocs)/i))
+
+
+    @classmethod
+    def crack(cls, message, sim):
+        """Try to crack the Vigenere Cipher.
+
+        This will employ a Kasiski examination to determine a list of possible
+        key lengths. Then, it will attempt to crack the individual Caesar
+        Ciphers that make up the message.
+
+        """
+        cls.kasiski(message)
+        cls.ic(message)

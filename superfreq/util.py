@@ -2,7 +2,9 @@
 """
 Utility functions for frequency analysis.
 """
+from collections import Counter
 from itertools import cycle, islice
+from functools import reduce
 import math
 
 ENGFREQ = {
@@ -47,6 +49,21 @@ def roundrobin(*iterables):
         except StopIteration:
             pending -= 1
             nexts = cycle(islice(nexts, pending))
+
+
+def factors(n):
+    return set(reduce(list.__add__,
+                ([i, n//i] for i in range(1, int(n**0.5) + 1) if n % i == 0)))
+
+
+def index_of_coincidence(s):
+    """Return the index of coincidence of a string."""
+    c = Counter(s)
+    x = 0
+    for _, n in c.items():
+        x += n * (n - 1)
+    N = len(s)
+    return x / (N * (N - 1))
 
 
 class SimilarityMetric(object):
